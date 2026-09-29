@@ -76,24 +76,29 @@ export function currentStudentSetupScreen(user) {
 
 export function stepScreen(user, step, notice = "", reminder = null) {
   const rows = [];
+  const completed = (user.completedStepIds || []).includes(step.id);
   if (!user.readOnly) {
-    const completed = (user.completedStepIds || []).includes(step.id);
     rows.push([
       Keyboard.button.callback(
         completed ? "↩️ Вернуть в работу" : "✅ Отметить сделанным",
         `toggle:${step.id}`,
       ),
     ]);
-    rows.push([
-      Keyboard.button.callback(
-        reminder ? "⚙️ Настроить напоминание" : "⏰ Напомнить за 2 дня",
-        reminder ? `reminder:${step.id}` : `remind:${step.id}`,
-      ),
-    ]);
+    if (!completed) {
+      rows.push([
+        Keyboard.button.callback(
+          reminder ? "⚙️ Настроить напоминание" : "⏰ Напомнить за 2 дня",
+          reminder ? `reminder:${step.id}` : `remind:${step.id}`,
+        ),
+      ]);
+    }
   }
   rows.push([Keyboard.button.link(`🔗 ${step.sourceLabel}`, step.sourceUrl)]);
   rows.push([Keyboard.button.callback("← К чек-листу", "checklist")]);
-  return screen(stepText(user, step, notice), rows);
+  const completionNotice = completed && !user.readOnly
+    ? "🔕 Для выполненного пункта напоминания отключены. Чтобы поставить напоминание, сначала нажми «Вернуть в работу»."
+    : "";
+  return screen(stepText(user, step, [notice, completionNotice].filter(Boolean).join("\n\n")), rows);
 }
 
 export function arrivalPromptScreen() {

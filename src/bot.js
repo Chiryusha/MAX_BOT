@@ -76,6 +76,19 @@ function registerHandlers(bot, store) {
     store.getReminder(user.userId, step.id),
   );
 
+  const stepIsCompleted = (user, stepId) => (
+    (user.completedStepIds || []).includes(stepId)
+  );
+
+  const completedStepScreen = (user, step) => {
+    store.deleteReminder(user.userId, step.id);
+    return stepDetails(
+      user,
+      step,
+      "⛔ Напоминание не установлено.",
+    );
+  };
+
   const rescheduleActiveReminders = (userId, chatId) => {
     const user = store.getUser(userId);
     for (const reminder of store.listUserReminders(userId)) {
@@ -160,11 +173,10 @@ function registerHandlers(bot, store) {
     if (!step || user.readOnly || user.situation !== "current") {
       return sendScreen(ctx, checklist(user), true);
     }
-    return sendScreen(
-      ctx,
-      currentStudentSetupScreen(store.toggleStep(userId, step.id)),
-      true,
-    );
+    const wasCompleted = stepIsCompleted(user, step.id);
+    const updated = store.toggleStep(userId, step.id);
+    if (!wasCompleted) store.deleteReminder(userId, step.id);
+    return sendScreen(ctx, currentStudentSetupScreen(updated), true);
   });
 
   bot.action("setup:done", (ctx) => {
@@ -210,7 +222,9 @@ function registerHandlers(bot, store) {
     const { userId, user } = ensure(ctx);
     const step = stepsById.get(ctx.match?.[1]);
     if (!step || user.readOnly) return sendScreen(ctx, checklist(user), true);
+    const wasCompleted = stepIsCompleted(user, step.id);
     const updated = store.toggleStep(userId, step.id);
+    if (!wasCompleted) store.deleteReminder(userId, step.id);
     return sendScreen(ctx, checklist(updated), true);
   });
 
@@ -218,6 +232,9 @@ function registerHandlers(bot, store) {
     const { userId, chatId, user } = ensure(ctx);
     const step = stepsById.get(ctx.match?.[1]);
     if (!step || user.readOnly) return sendScreen(ctx, checklist(user), true);
+    if (stepIsCompleted(user, step.id)) {
+      return sendScreen(ctx, completedStepScreen(user, step), true);
+    }
 
     const schedule = calculateReminderSchedule(user, step);
     if (!schedule) {
@@ -237,6 +254,9 @@ function registerHandlers(bot, store) {
     const { userId, user } = ensure(ctx);
     const step = stepsById.get(ctx.match?.[1]);
     if (!step || user.readOnly) return sendScreen(ctx, checklist(user), true);
+    if (stepIsCompleted(user, step.id)) {
+      return sendScreen(ctx, completedStepScreen(user, step), true);
+    }
     return sendScreen(
       ctx,
       reminderSettingsScreen(user, step, store.getReminder(userId, step.id)),
@@ -249,6 +269,9 @@ function registerHandlers(bot, store) {
     const step = stepsById.get(ctx.match?.[1]);
     const leadDays = Number(ctx.match?.[2]);
     if (!step || user.readOnly) return sendScreen(ctx, checklist(user), true);
+    if (stepIsCompleted(user, step.id)) {
+      return sendScreen(ctx, completedStepScreen(user, step), true);
+    }
 
     const schedule = calculateReminderSchedule(user, step, new Date(), { leadDays });
     if (!schedule) {
@@ -273,6 +296,9 @@ function registerHandlers(bot, store) {
     const { userId, user } = ensure(ctx);
     const step = stepsById.get(ctx.match?.[1]);
     if (!step || user.readOnly) return sendScreen(ctx, checklist(user), true);
+    if (stepIsCompleted(user, step.id)) {
+      return sendScreen(ctx, completedStepScreen(user, step), true);
+    }
     const reminder = store.getReminder(userId, step.id);
     const leadDays = Number.isInteger(reminder?.leadDays) ? reminder.leadDays : 2;
     store.setAwaitingInput(userId, `deadline:${step.id}:${leadDays}`);
@@ -315,6 +341,10 @@ function registerHandlers(bot, store) {
       if (!step) {
         store.setAwaitingInput(userId, null);
         return sendScreen(ctx, checklist(store.getUser(userId)));
+      }
+      if (stepIsCompleted(user, step.id)) {
+        store.setAwaitingInput(userId, null);
+        return sendScreen(ctx, completedStepScreen(store.getUser(userId), step));
       }
 
       const updated = store.setCustomDeadline(userId, stepId, candidate);
@@ -369,6 +399,7 @@ async function main() {
     timezoneOffsetMinutes: config.defaultTimezoneOffsetMinutes,
   });
   store.load();
+  store.pruneCompletedReminders();
 
   const bot = new Bot(config.token);
   registerHandlers(bot, store);

@@ -50,6 +50,15 @@ test("reminder lead time is editable", () => {
   assert.equal(formatDateTimeInOffset(schedule.remindAt, 180), "01.10.2026 в 09:00");
 });
 
+test("completed checklist step cannot receive a reminder", () => {
+  const user = createDefaultUser("1", 1, 180);
+  user.arrivalDate = "2026-10-01";
+  user.completedStepIds = ["migration-registration"];
+  const step = stepsById.get("migration-registration");
+
+  assert.equal(calculateReminderSchedule(user, step), null);
+});
+
 test("new and current students receive different checklist guidance", () => {
   const newcomer = createDefaultUser("1", 1, 180);
   newcomer.situation = "new";

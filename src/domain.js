@@ -77,6 +77,7 @@ export function getEffectiveDeadline(user, step) {
 }
 
 export function calculateReminderSchedule(user, step, now = new Date(), { leadDays = 2 } = {}) {
+  if ((user.completedStepIds || []).includes(step.id)) return null;
   const dueDate = getEffectiveDeadline(user, step);
   if (!dueDate) return null;
 

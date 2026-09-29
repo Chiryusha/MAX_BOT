@@ -125,11 +125,16 @@ export class JsonStore {
   }
 
   scheduleReminder({ userId, chatId, stepId, dueDate, remindAt, leadDays = 2 }) {
-    const id = `${String(userId)}:${stepId}`;
+    const userKey = String(userId);
+    const user = this.state.users[userKey];
+    if ((user?.completedStepIds || []).includes(stepId)) {
+      throw new Error(`Нельзя поставить напоминание для выполненного пункта ${stepId}`);
+    }
+    const id = `${userKey}:${stepId}`;
     const existing = this.state.reminders[id];
     this.state.reminders[id] = {
       id,
-      userId: String(userId),
+      userId: userKey,
       chatId: Number(chatId),
       stepId,
       dueDate,
@@ -164,6 +169,19 @@ export class JsonStore {
     delete this.state.reminders[id];
     this.persist();
     return true;
+  }
+
+  pruneCompletedReminders() {
+    let removed = 0;
+    for (const [id, reminder] of Object.entries(this.state.reminders)) {
+      const user = this.state.users[reminder.userId];
+      if ((user?.completedStepIds || []).includes(reminder.stepId)) {
+        delete this.state.reminders[id];
+        removed += 1;
+      }
+    }
+    if (removed > 0) this.persist();
+    return removed;
   }
 
   listDueReminders(now = new Date()) {

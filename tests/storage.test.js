@@ -17,7 +17,22 @@ test("JsonStore persists progress and keeps one reminder per step", (t) => {
   const store = new JsonStore(file);
   store.ensureUser("42", 100);
   store.setSituation("42", "new", { arrivalDate: "2026-09-29" });
+  store.scheduleReminder({
+    userId: "42",
+    chatId: 100,
+    stepId: "migration-card",
+    dueDate: "2026-09-30",
+    remindAt: "2026-09-29T06:00:00.000Z",
+  });
   store.toggleStep("42", "migration-card");
+  assert.equal(store.pruneCompletedReminders(), 1);
+  assert.throws(() => store.scheduleReminder({
+    userId: "42",
+    chatId: 100,
+    stepId: "migration-card",
+    dueDate: "2026-09-30",
+    remindAt: "2026-09-29T06:00:00.000Z",
+  }), /Нельзя поставить напоминание/);
   store.scheduleReminder({
     userId: "42",
     chatId: 100,
