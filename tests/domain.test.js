@@ -6,6 +6,7 @@ import {
   checklistText,
   createDefaultUser,
   formatDateTimeInOffset,
+  isArrivalDateAllowed,
   normalizeDate,
   progressBar,
   stepText,
@@ -19,6 +20,14 @@ test("normalizeDate rejects impossible dates", () => {
 
 test("addDays handles month boundaries", () => {
   assert.equal(addDays("2026-09-29", 7), "2026-10-06");
+});
+
+test("arrival date cannot be later than today in the user's timezone", () => {
+  const now = new Date("2026-09-29T21:30:00.000Z");
+  assert.equal(isArrivalDateAllowed("2026-09-29", now, 180), true);
+  assert.equal(isArrivalDateAllowed("2026-09-30", now, 180), true);
+  assert.equal(isArrivalDateAllowed("2026-10-01", now, 180), false);
+  assert.equal(isArrivalDateAllowed("not-a-date", now, 180), false);
 });
 
 test("progressBar renders a bounded ten-cell bar", () => {

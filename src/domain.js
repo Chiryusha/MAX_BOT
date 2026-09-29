@@ -52,6 +52,11 @@ export function dateInOffset(date = new Date(), offsetMinutes = 180) {
   return shifted.toISOString().slice(0, 10);
 }
 
+export function isArrivalDateAllowed(value, now = new Date(), offsetMinutes = 180) {
+  const normalized = normalizeDate(value);
+  return Boolean(normalized && normalized <= dateInOffset(now, offsetMinutes));
+}
+
 export function addDays(dateString, days) {
   const normalized = normalizeDate(dateString);
   if (!normalized) return null;

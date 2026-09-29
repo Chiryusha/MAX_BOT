@@ -101,13 +101,16 @@ export function stepScreen(user, step, notice = "", reminder = null) {
   return screen(stepText(user, step, [notice, completionNotice].filter(Boolean).join("\n\n")), rows);
 }
 
-export function arrivalPromptScreen() {
-  return screen([
+export function arrivalPromptScreen(notice = "") {
+  const lines = [
     "**Дата въезда**",
     "",
     "Отправь дату одним сообщением в формате **ГГГГ-ММ-ДД**.",
     "Например: `2026-09-29`.",
-  ].join("\n"), [
+    "Дата не может быть позже сегодняшнего дня.",
+  ];
+  if (notice) lines.push("", notice);
+  return screen(lines.join("\n"), [
     [Keyboard.button.callback("Отмена", "checklist")],
   ]);
 }

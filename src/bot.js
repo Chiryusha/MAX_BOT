@@ -4,6 +4,7 @@ import { assertConfig, loadConfig } from "./config.js";
 import {
   calculateReminderSchedule,
   dateInOffset,
+  isArrivalDateAllowed,
   normalizeDate,
   stepsById,
 } from "./domain.js";
@@ -135,6 +136,13 @@ function registerHandlers(bot, store) {
     if (!candidate) {
       store.setAwaitingInput(userId, "arrival");
       return sendScreen(ctx, arrivalPromptScreen());
+    }
+    if (!isArrivalDateAllowed(candidate, new Date(), user.timezoneOffsetMinutes)) {
+      store.setAwaitingInput(userId, "arrival");
+      return sendScreen(
+        ctx,
+        arrivalPromptScreen("⛔ Дата въезда не может быть в будущем. Укажи сегодняшнюю или прошедшую дату."),
+      );
     }
     const updated = store.setArrivalDate(userId, candidate);
     rescheduleActiveReminders(userId, updated.chatId);
@@ -327,6 +335,9 @@ function registerHandlers(bot, store) {
     }
 
     if (user.awaitingInput === "arrival") {
+      if (!isArrivalDateAllowed(candidate, new Date(), user.timezoneOffsetMinutes)) {
+        return ctx.reply("⛔ Дата въезда не может быть в будущем. Отправь сегодняшнюю или прошедшую дату в формате ГГГГ-ММ-ДД.");
+      }
       const updated = store.setArrivalDate(userId, candidate);
       rescheduleActiveReminders(userId, chatId);
       return sendScreen(ctx, checklist(store.getUser(userId)));
