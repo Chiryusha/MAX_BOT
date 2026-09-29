@@ -6,6 +6,7 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
 COPY --chown=node:node src ./src
+COPY --chown=node:node certs ./certs
 RUN mkdir -p /app/data && chown -R node:node /app/data
 
 ENV NODE_ENV=production

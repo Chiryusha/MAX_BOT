@@ -18,6 +18,7 @@ import {
   stepScreen,
 } from "./scenarios.js";
 import { JsonStore } from "./storage.js";
+import { configureMaxApiTls } from "./tls.js";
 
 const ALLOWED_UPDATES = ["bot_started", "message_created", "message_callback"];
 
@@ -220,6 +221,7 @@ function createHttpServer({ port, mode, webhookHandler, readiness }) {
 async function main() {
   const config = loadConfig();
   assertConfig(config);
+  configureMaxApiTls();
 
   const store = new JsonStore(config.stateFile, {
     timezoneOffsetMinutes: config.defaultTimezoneOffsetMinutes,

@@ -5,13 +5,13 @@
   "description": "MAX chatbot navigator for international students arriving in Russia",
   "type": "module",
   "engines": {
-    "node": ">=20.19.0"
+    "node": ">=24.5.0"
   },
   "scripts": {
     "start": "node --env-file-if-exists=.env src/bot.js",
     "demo": "node src/demo.js",
     "test": "node --test",
-    "lint": "node --check src/bot.js && node --check src/config.js && node --check src/domain.js && node --check src/reminders.js && node --check src/scenarios.js && node --check src/storage.js && node --check src/demo.js"
+    "lint": "node --check src/bot.js && node --check src/config.js && node --check src/domain.js && node --check src/reminders.js && node --check src/scenarios.js && node --check src/storage.js && node --check src/tls.js && node --check src/demo.js"
   },
   "dependencies": {
     "@maxhub/max-bot-api": "0.3.1"
