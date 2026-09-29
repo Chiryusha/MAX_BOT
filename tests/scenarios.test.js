@@ -1,0 +1,18 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { createDefaultUser, steps } from "../src/domain.js";
+import { currentStudentSetupScreen } from "../src/scenarios.js";
+
+test("current student setup provides a toggle for every checklist step", () => {
+  const user = createDefaultUser("42", 100, 180);
+  user.situation = "current";
+  user.completedStepIds = [steps[0].id];
+
+  const setup = currentStudentSetupScreen(user);
+  const buttons = setup.extra.attachments[0].payload.buttons;
+
+  assert.match(setup.text, /Отмечено: \*\*1\/8\*\*/);
+  assert.equal(buttons.length, steps.length + 2);
+  assert.equal(buttons[0][0].payload, `setup:toggle:${steps[0].id}`);
+  assert.equal(buttons.at(-2)[0].payload, "setup:done");
+});

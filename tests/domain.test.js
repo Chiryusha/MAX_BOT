@@ -3,10 +3,12 @@ import assert from "node:assert/strict";
 import {
   addDays,
   calculateReminderSchedule,
+  checklistText,
   createDefaultUser,
   formatDateTimeInOffset,
   normalizeDate,
   progressBar,
+  stepText,
   stepsById,
 } from "../src/domain.js";
 
@@ -46,4 +48,20 @@ test("reminder lead time is editable", () => {
   );
   assert.equal(schedule.remindAt, "2026-10-01T06:00:00.000Z");
   assert.equal(formatDateTimeInOffset(schedule.remindAt, 180), "01.10.2026 в 09:00");
+});
+
+test("new and current students receive different checklist guidance", () => {
+  const newcomer = createDefaultUser("1", 1, 180);
+  newcomer.situation = "new";
+  newcomer.arrivalDate = "2026-10-01";
+  assert.match(checklistText(newcomer), /Срочно после въезда/);
+
+  const current = createDefaultUser("2", 2, 180);
+  current.situation = "current";
+  current.completedStepIds = ["migration-registration"];
+  assert.match(checklistText(current), /Проверка документов и сроков/);
+  assert.match(
+    stepText(current, stepsById.get("migration-registration")),
+    /Документ отмечен как оформленный/,
+  );
 });

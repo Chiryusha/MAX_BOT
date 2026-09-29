@@ -113,14 +113,44 @@ export function progressBar(completedCount, totalCount, width = 10) {
 export function checklistText(user) {
   const completed = new Set(user.completedStepIds || []);
   const count = steps.filter((step) => completed.has(step.id)).length;
-  const mode = user.readOnly ? "Режим просмотра" : "Личный чек-лист";
+  const mode = user.readOnly
+    ? "Режим просмотра"
+    : user.situation === "new"
+      ? "Первые шаги после въезда"
+      : user.situation === "current"
+        ? "Проверка документов и сроков"
+        : "Личный чек-лист";
   const arrival = user.arrivalDate
     ? `Дата въезда: ${formatDate(user.arrivalDate)}`
     : "Дата въезда не указана — автоматические дедлайны пока не считаются";
-  const lines = steps.map((step) => {
+  const lineForStep = (step) => {
     const marker = completed.has(step.id) ? "✅" : "⬜";
     return `${marker} ${step.order}. ${step.title}`;
-  });
+  };
+
+  let lines;
+  if (user.situation === "new" && !user.readOnly) {
+    const urgent = steps.filter((step) => (
+      Number.isInteger(step.deadlineDaysFromArrival)
+      && step.deadlineDaysFromArrival <= 7
+    ));
+    const later = steps.filter((step) => !urgent.includes(step));
+    lines = [
+      "**⚡ Срочно после въезда**",
+      ...urgent.map(lineForStep),
+      "",
+      "**📋 Следующие шаги**",
+      ...later.map(lineForStep),
+    ];
+  } else {
+    lines = steps.map(lineForStep);
+  }
+
+  const guidance = user.readOnly
+    ? "Открой пункт, чтобы посмотреть карточку. Изменения в режиме просмотра не сохраняются."
+    : user.situation === "current"
+      ? "Отмеченные пункты уже оформлены. Открой документ, чтобы проверить актуальность, срок действия и настроить напоминание."
+      : "Сначала проверь срочные пункты, затем двигайся по остальному списку. В карточке можно отметить выполнение и поставить напоминание.";
 
   return [
     `**${content.productName} — ${mode}**`,
@@ -129,9 +159,7 @@ export function checklistText(user) {
     "",
     ...lines,
     "",
-    user.readOnly
-      ? "Открой пункт, чтобы посмотреть карточку. Изменения в режиме просмотра не сохраняются."
-      : "Открой пункт, чтобы увидеть детали, отметить выполнение или поставить напоминание.",
+    guidance,
     "",
     `_${content.disclaimer}_`,
   ].join("\n");
@@ -144,6 +172,18 @@ export function stepText(user, step, notice = "") {
 
   const lines = [
     `**${completed ? "✅" : "⬜"} ${step.order}. ${step.title}**`,
+  ];
+
+  if (user.situation === "current" && !user.readOnly) {
+    lines.push(
+      "",
+      completed
+        ? "**Статус**\nДокумент отмечен как оформленный. Проверь его актуальность и срок действия, если он ограничен."
+        : "**Статус**\nДокумент пока не отмечен. Проверь, требуется ли его оформить или восстановить.",
+    );
+  }
+
+  lines.push(
     "",
     `**Что это**\n${step.summary}`,
     "",
@@ -155,7 +195,7 @@ export function stepText(user, step, notice = "") {
     deadlineDate ? `Персональная дата в боте: **${formatDate(deadlineDate)}**` : "Персональная дата пока не задана.",
     "",
     `**Если просрочить**\n${step.consequence}`,
-  ];
+  );
 
   if (notice) lines.push("", notice);
   lines.push("", `_${content.disclaimer}_`);

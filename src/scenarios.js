@@ -41,12 +41,37 @@ export function checklistScreen(user, reminders = []) {
   ]);
 
   if (!user.readOnly) {
+    if (user.situation === "current") {
+      rows.push([Keyboard.button.callback("🧾 Что у меня уже оформлено", "setup:open")]);
+    }
     rows.push([Keyboard.button.callback("📅 Изменить дату въезда", "arrival:set")]);
     rows.push([Keyboard.button.callback(`⏰ Мои напоминания (${reminders.length})`, "reminders")]);
   }
   rows.push([Keyboard.button.callback("↩️ В начало", "onboarding")]);
 
   return screen(checklistText(user), rows);
+}
+
+export function currentStudentSetupScreen(user) {
+  const completed = new Set(user.completedStepIds || []);
+  const rows = steps.map((step) => [
+    Keyboard.button.callback(
+      `${completed.has(step.id) ? "✅" : "⬜"} ${step.order}. ${step.title}`,
+      `setup:toggle:${step.id}`,
+    ),
+  ]);
+  rows.push([Keyboard.button.callback("Готово — открыть мой чек-лист", "setup:done")]);
+  rows.push([Keyboard.button.callback("← Назад", "onboarding")]);
+
+  return screen([
+    "**Что у тебя уже оформлено?**",
+    "",
+    "Отметь документы и процедуры, которые уже готовы. Нажимать можно несколько раз — галочка включается и снимается.",
+    "",
+    `Отмечено: **${completed.size}/${steps.length}**`,
+    "",
+    "После настройки бот покажет, что осталось оформить, а для готовых документов поможет проверить сроки и поставить напоминания.",
+  ].join("\n"), rows);
 }
 
 export function stepScreen(user, step, notice = "", reminder = null) {

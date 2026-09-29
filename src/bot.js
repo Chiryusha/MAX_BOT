@@ -11,6 +11,7 @@ import { startReminderWorker } from "./reminders.js";
 import {
   arrivalPromptScreen,
   checklistScreen,
+  currentStudentSetupScreen,
   deadlinePromptScreen,
   helpScreen,
   onboardingScreen,
@@ -139,7 +140,39 @@ function registerHandlers(bot, store) {
       readOnly: choice === "preview",
       arrivalDate,
     });
+    if (choice === "current") {
+      return sendScreen(ctx, currentStudentSetupScreen(updated), true);
+    }
     return sendScreen(ctx, checklist(updated), true);
+  });
+
+  bot.action("setup:open", (ctx) => {
+    const { user } = ensure(ctx);
+    if (user.readOnly || user.situation !== "current") {
+      return sendScreen(ctx, checklist(user), true);
+    }
+    return sendScreen(ctx, currentStudentSetupScreen(user), true);
+  });
+
+  bot.action(/^setup:toggle:([a-z0-9-]+)$/, (ctx) => {
+    const { userId, user } = ensure(ctx);
+    const step = stepsById.get(ctx.match?.[1]);
+    if (!step || user.readOnly || user.situation !== "current") {
+      return sendScreen(ctx, checklist(user), true);
+    }
+    return sendScreen(
+      ctx,
+      currentStudentSetupScreen(store.toggleStep(userId, step.id)),
+      true,
+    );
+  });
+
+  bot.action("setup:done", (ctx) => {
+    const { user } = ensure(ctx);
+    if (user.readOnly || user.situation !== "current") {
+      return sendScreen(ctx, checklist(user), true);
+    }
+    return sendScreen(ctx, checklist(user), true);
   });
 
   bot.action("checklist", (ctx) => {
