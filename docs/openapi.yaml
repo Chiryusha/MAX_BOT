@@ -1,27 +1,28 @@
 openapi: 3.0.3
 info:
-  title: First Step MAX Bot Runtime API
-  version: 1.0.0
-  description: HTTP endpoints exposed by the bot container. MAX Bot API calls are made through the official SDK.
+  title: Служебный HTTP API бота «Первый шаг»
+  version: 1.1.0
+  description: Health-check и входная точка webhook. Пользовательские сценарии работают через официальный MAX Bot API.
 servers:
-  - url: https://bot.example.com
+  - url: http://localhost:3000
+    description: Локальный запуск
 paths:
   /healthz:
     get:
-      summary: Container readiness probe
+      summary: Проверить готовность процесса
       responses:
         "200":
-          description: Bot runtime is ready
+          description: Процесс готов принимать обновления
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Health"
         "503":
-          description: Bot is starting
+          description: Процесс запускается
   /webhook/{tokenHash}:
     post:
-      summary: Receive an update from MAX
-      description: The actual path is generated from the bot token unless WEBHOOK_PATH is configured.
+      summary: Принять обновление от MAX
+      description: Фактический путь задаётся через WEBHOOK_PATH либо формируется из хеша токена бота.
       parameters:
         - in: path
           name: tokenHash
@@ -41,11 +42,11 @@ paths:
               $ref: "#/components/schemas/MaxUpdate"
       responses:
         "200":
-          description: Update accepted
+          description: Обновление принято
         "400":
-          description: Invalid JSON
+          description: Некорректное тело запроса
         "404":
-          description: Wrong path, method, or secret
+          description: Неверный путь, HTTP-метод или секрет
 components:
   schemas:
     Health:
