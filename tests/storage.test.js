@@ -38,4 +38,8 @@ test("JsonStore persists progress and keeps one reminder per step", (t) => {
   assert.deepEqual(reloaded.getUser("42").completedStepIds, ["migration-card"]);
   assert.equal(Object.keys(JSON.parse(readFileSync(file, "utf8")).reminders).length, 1);
   assert.equal(reloaded.listDueReminders(new Date("2026-10-05T06:00:00.000Z")).length, 1);
+  assert.equal(reloaded.listUserReminders("42").length, 1);
+  assert.equal(reloaded.getReminder("42", "migration-registration").dueDate, "2026-10-07");
+  assert.equal(reloaded.deleteReminder("42", "migration-registration"), true);
+  assert.equal(reloaded.listUserReminders("42").length, 0);
 });

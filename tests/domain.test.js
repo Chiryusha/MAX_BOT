@@ -4,6 +4,7 @@ import {
   addDays,
   calculateReminderSchedule,
   createDefaultUser,
+  formatDateTimeInOffset,
   normalizeDate,
   progressBar,
   stepsById,
@@ -30,4 +31,19 @@ test("reminder is scheduled two days before deadline", () => {
   const schedule = calculateReminderSchedule(user, step, new Date("2026-10-01T00:00:00Z"));
   assert.equal(schedule.dueDate, "2026-10-08");
   assert.equal(schedule.remindAt, "2026-10-06T06:00:00.000Z");
+  assert.equal(schedule.leadDays, 2);
+});
+
+test("reminder lead time is editable", () => {
+  const user = createDefaultUser("1", 1, 180);
+  user.arrivalDate = "2026-10-01";
+  const step = stepsById.get("migration-registration");
+  const schedule = calculateReminderSchedule(
+    user,
+    step,
+    new Date("2026-10-01T00:00:00Z"),
+    { leadDays: 7 },
+  );
+  assert.equal(schedule.remindAt, "2026-10-01T06:00:00.000Z");
+  assert.equal(formatDateTimeInOffset(schedule.remindAt, 180), "01.10.2026 в 09:00");
 });

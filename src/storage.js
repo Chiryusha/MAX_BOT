@@ -124,7 +124,7 @@ export class JsonStore {
     return clone(this.state.users[key]);
   }
 
-  scheduleReminder({ userId, chatId, stepId, dueDate, remindAt }) {
+  scheduleReminder({ userId, chatId, stepId, dueDate, remindAt, leadDays = 2 }) {
     const id = `${String(userId)}:${stepId}`;
     const existing = this.state.reminders[id];
     this.state.reminders[id] = {
@@ -134,6 +134,7 @@ export class JsonStore {
       stepId,
       dueDate,
       remindAt,
+      leadDays,
       sentAt: null,
       attempts: 0,
       lastErrorAt: null,
@@ -142,6 +143,27 @@ export class JsonStore {
     };
     this.persist();
     return clone(this.state.reminders[id]);
+  }
+
+  getReminder(userId, stepId) {
+    const reminder = this.state.reminders[`${String(userId)}:${stepId}`];
+    return reminder && !reminder.sentAt ? clone(reminder) : null;
+  }
+
+  listUserReminders(userId) {
+    const key = String(userId);
+    return Object.values(this.state.reminders)
+      .filter((reminder) => reminder.userId === key && !reminder.sentAt)
+      .sort((a, b) => Date.parse(a.remindAt) - Date.parse(b.remindAt))
+      .map(clone);
+  }
+
+  deleteReminder(userId, stepId) {
+    const id = `${String(userId)}:${stepId}`;
+    if (!this.state.reminders[id]) return false;
+    delete this.state.reminders[id];
+    this.persist();
+    return true;
   }
 
   listDueReminders(now = new Date()) {

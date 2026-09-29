@@ -15,6 +15,8 @@ import {
   helpScreen,
   onboardingScreen,
   reminderConfirmationText,
+  reminderSettingsScreen,
+  remindersScreen,
   stepScreen,
 } from "./scenarios.js";
 import { JsonStore } from "./storage.js";
@@ -61,6 +63,32 @@ function registerHandlers(bot, store) {
     return sendScreen(ctx, onboardingScreen(), replace);
   };
 
+  const checklist = (user) => checklistScreen(
+    user,
+    store.listUserReminders(user.userId),
+  );
+
+  const stepDetails = (user, step, notice = "") => stepScreen(
+    user,
+    step,
+    notice,
+    store.getReminder(user.userId, step.id),
+  );
+
+  const rescheduleActiveReminders = (userId, chatId) => {
+    const user = store.getUser(userId);
+    for (const reminder of store.listUserReminders(userId)) {
+      const step = stepsById.get(reminder.stepId);
+      if (!step) continue;
+      const schedule = calculateReminderSchedule(user, step, new Date(), {
+        leadDays: Number.isInteger(reminder.leadDays) ? reminder.leadDays : 2,
+      });
+      if (schedule) {
+        store.scheduleReminder({ userId, chatId, stepId: step.id, ...schedule });
+      }
+    }
+  };
+
   bot.on("bot_started", (ctx) => showOnboarding(ctx));
   bot.command("start", (ctx) => showOnboarding(ctx));
 
@@ -71,7 +99,13 @@ function registerHandlers(bot, store) {
 
   bot.command("checklist", (ctx) => {
     const { user } = ensure(ctx);
-    return sendScreen(ctx, user.situation ? checklistScreen(user) : onboardingScreen());
+    return sendScreen(ctx, user.situation ? checklist(user) : onboardingScreen());
+  });
+
+  bot.command("reminders", (ctx) => {
+    const { userId, user } = ensure(ctx);
+    if (user.readOnly) return sendScreen(ctx, checklist(user));
+    return sendScreen(ctx, remindersScreen(user, store.listUserReminders(userId)));
   });
 
   bot.command("reset", (ctx) => {
@@ -82,14 +116,15 @@ function registerHandlers(bot, store) {
 
   bot.command("arrival", (ctx) => {
     const { userId, user } = ensure(ctx);
-    if (user.readOnly) return sendScreen(ctx, checklistScreen(user));
+    if (user.readOnly) return sendScreen(ctx, checklist(user));
     const candidate = normalizeDate(commandArgument(ctx));
     if (!candidate) {
       store.setAwaitingInput(userId, "arrival");
       return sendScreen(ctx, arrivalPromptScreen());
     }
     const updated = store.setArrivalDate(userId, candidate);
-    return sendScreen(ctx, checklistScreen(updated));
+    rescheduleActiveReminders(userId, updated.chatId);
+    return sendScreen(ctx, checklist(store.getUser(userId)));
   });
 
   bot.action("onboarding", (ctx) => showOnboarding(ctx, true));
@@ -104,18 +139,29 @@ function registerHandlers(bot, store) {
       readOnly: choice === "preview",
       arrivalDate,
     });
-    return sendScreen(ctx, checklistScreen(updated), true);
+    return sendScreen(ctx, checklist(updated), true);
   });
 
   bot.action("checklist", (ctx) => {
     const { userId, user } = ensure(ctx);
     if (user.awaitingInput) store.setAwaitingInput(userId, null);
-    return sendScreen(ctx, checklistScreen(store.getUser(userId)), true);
+    return sendScreen(ctx, checklist(store.getUser(userId)), true);
+  });
+
+  bot.action("reminders", (ctx) => {
+    const { userId, user } = ensure(ctx);
+    if (user.readOnly) return sendScreen(ctx, checklist(user), true);
+    if (user.awaitingInput) store.setAwaitingInput(userId, null);
+    return sendScreen(
+      ctx,
+      remindersScreen(store.getUser(userId), store.listUserReminders(userId)),
+      true,
+    );
   });
 
   bot.action("arrival:set", (ctx) => {
     const { userId, user } = ensure(ctx);
-    if (user.readOnly) return sendScreen(ctx, checklistScreen(user), true);
+    if (user.readOnly) return sendScreen(ctx, checklist(user), true);
     store.setAwaitingInput(userId, "arrival");
     return sendScreen(ctx, arrivalPromptScreen(), true);
   });
@@ -123,22 +169,22 @@ function registerHandlers(bot, store) {
   bot.action(/^step:([a-z0-9-]+)$/, (ctx) => {
     const { user } = ensure(ctx);
     const step = stepsById.get(ctx.match?.[1]);
-    if (!step) return sendScreen(ctx, checklistScreen(user), true);
-    return sendScreen(ctx, stepScreen(user, step), true);
+    if (!step) return sendScreen(ctx, checklist(user), true);
+    return sendScreen(ctx, stepDetails(user, step), true);
   });
 
   bot.action(/^toggle:([a-z0-9-]+)$/, (ctx) => {
     const { userId, user } = ensure(ctx);
     const step = stepsById.get(ctx.match?.[1]);
-    if (!step || user.readOnly) return sendScreen(ctx, checklistScreen(user), true);
+    if (!step || user.readOnly) return sendScreen(ctx, checklist(user), true);
     const updated = store.toggleStep(userId, step.id);
-    return sendScreen(ctx, checklistScreen(updated), true);
+    return sendScreen(ctx, checklist(updated), true);
   });
 
   bot.action(/^remind:([a-z0-9-]+)$/, (ctx) => {
     const { userId, chatId, user } = ensure(ctx);
     const step = stepsById.get(ctx.match?.[1]);
-    if (!step || user.readOnly) return sendScreen(ctx, checklistScreen(user), true);
+    if (!step || user.readOnly) return sendScreen(ctx, checklist(user), true);
 
     const schedule = calculateReminderSchedule(user, step);
     if (!schedule) {
@@ -149,9 +195,63 @@ function registerHandlers(bot, store) {
     store.scheduleReminder({ userId, chatId, stepId: step.id, ...schedule });
     return sendScreen(
       ctx,
-      stepScreen(user, step, reminderConfirmationText(step, schedule)),
+      stepDetails(user, step, reminderConfirmationText(step, schedule)),
       true,
     );
+  });
+
+  bot.action(/^reminder:([a-z0-9-]+)$/, (ctx) => {
+    const { userId, user } = ensure(ctx);
+    const step = stepsById.get(ctx.match?.[1]);
+    if (!step || user.readOnly) return sendScreen(ctx, checklist(user), true);
+    return sendScreen(
+      ctx,
+      reminderSettingsScreen(user, step, store.getReminder(userId, step.id)),
+      true,
+    );
+  });
+
+  bot.action(/^reminder:offset:([a-z0-9-]+):(1|2|3|7)$/, (ctx) => {
+    const { userId, chatId, user } = ensure(ctx);
+    const step = stepsById.get(ctx.match?.[1]);
+    const leadDays = Number(ctx.match?.[2]);
+    if (!step || user.readOnly) return sendScreen(ctx, checklist(user), true);
+
+    const schedule = calculateReminderSchedule(user, step, new Date(), { leadDays });
+    if (!schedule) {
+      store.setAwaitingInput(userId, `deadline:${step.id}:${leadDays}`);
+      return sendScreen(ctx, deadlinePromptScreen(step), true);
+    }
+
+    const reminder = store.scheduleReminder({
+      userId,
+      chatId,
+      stepId: step.id,
+      ...schedule,
+    });
+    return sendScreen(
+      ctx,
+      reminderSettingsScreen(user, step, reminder, `✅ Теперь напомню за ${leadDays} дн. до срока.`),
+      true,
+    );
+  });
+
+  bot.action(/^reminder:deadline:([a-z0-9-]+)$/, (ctx) => {
+    const { userId, user } = ensure(ctx);
+    const step = stepsById.get(ctx.match?.[1]);
+    if (!step || user.readOnly) return sendScreen(ctx, checklist(user), true);
+    const reminder = store.getReminder(userId, step.id);
+    const leadDays = Number.isInteger(reminder?.leadDays) ? reminder.leadDays : 2;
+    store.setAwaitingInput(userId, `deadline:${step.id}:${leadDays}`);
+    return sendScreen(ctx, deadlinePromptScreen(step), true);
+  });
+
+  bot.action(/^reminder:delete:([a-z0-9-]+)$/, (ctx) => {
+    const { userId, user } = ensure(ctx);
+    const step = stepsById.get(ctx.match?.[1]);
+    if (!step || user.readOnly) return sendScreen(ctx, checklist(user), true);
+    store.deleteReminder(userId, step.id);
+    return sendScreen(ctx, stepDetails(user, step, "🔕 Напоминание отключено."), true);
   });
 
   bot.on("message_created", async (ctx) => {
@@ -169,28 +269,37 @@ function registerHandlers(bot, store) {
 
     if (user.awaitingInput === "arrival") {
       const updated = store.setArrivalDate(userId, candidate);
-      return sendScreen(ctx, checklistScreen(updated));
+      rescheduleActiveReminders(userId, chatId);
+      return sendScreen(ctx, checklist(store.getUser(userId)));
     }
 
     if (user.awaitingInput.startsWith("deadline:")) {
-      const stepId = user.awaitingInput.slice("deadline:".length);
+      const [, stepId, rawLeadDays] = user.awaitingInput.split(":");
+      const leadDays = [1, 2, 3, 7].includes(Number(rawLeadDays))
+        ? Number(rawLeadDays)
+        : 2;
       const step = stepsById.get(stepId);
       if (!step) {
         store.setAwaitingInput(userId, null);
-        return sendScreen(ctx, checklistScreen(store.getUser(userId)));
+        return sendScreen(ctx, checklist(store.getUser(userId)));
       }
 
       const updated = store.setCustomDeadline(userId, stepId, candidate);
-      const schedule = calculateReminderSchedule(updated, step);
-      store.scheduleReminder({ userId, chatId, stepId, ...schedule });
+      const schedule = calculateReminderSchedule(updated, step, new Date(), { leadDays });
+      const reminder = store.scheduleReminder({ userId, chatId, stepId, ...schedule });
       return sendScreen(
         ctx,
-        stepScreen(updated, step, reminderConfirmationText(step, schedule)),
+        reminderSettingsScreen(
+          updated,
+          step,
+          reminder,
+          reminderConfirmationText(step, schedule),
+        ),
       );
     }
 
     store.setAwaitingInput(userId, null);
-    return sendScreen(ctx, checklistScreen(store.getUser(userId)));
+    return sendScreen(ctx, checklist(store.getUser(userId)));
   });
 }
 
@@ -240,6 +349,7 @@ async function main() {
     { name: "start", description: "Начать работу" },
     { name: "checklist", description: "Открыть чек-лист" },
     { name: "arrival", description: "Изменить дату въезда" },
+    { name: "reminders", description: "Настроить напоминания" },
     { name: "reset", description: "Сбросить прогресс" },
     { name: "help", description: "Показать команды" },
   ]);

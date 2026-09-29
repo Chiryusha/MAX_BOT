@@ -76,11 +76,12 @@ export function getEffectiveDeadline(user, step) {
   return null;
 }
 
-export function calculateReminderSchedule(user, step, now = new Date()) {
+export function calculateReminderSchedule(user, step, now = new Date(), { leadDays = 2 } = {}) {
   const dueDate = getEffectiveDeadline(user, step);
   if (!dueDate) return null;
 
-  const reminderDate = addDays(dueDate, -2);
+  const safeLeadDays = Number.isInteger(leadDays) && leadDays >= 0 ? leadDays : 2;
+  const reminderDate = addDays(dueDate, -safeLeadDays);
   const offset = Number.isInteger(user.timezoneOffsetMinutes)
     ? user.timezoneOffsetMinutes
     : 180;
@@ -91,7 +92,16 @@ export function calculateReminderSchedule(user, step, now = new Date()) {
   return {
     dueDate,
     remindAt: new Date(Math.max(targetMs, minimumMs)).toISOString(),
+    leadDays: safeLeadDays,
   };
+}
+
+export function formatDateTimeInOffset(isoString, offsetMinutes = 180) {
+  const value = new Date(isoString);
+  if (Number.isNaN(value.getTime())) return "не указано";
+  const shifted = new Date(value.getTime() + offsetMinutes * 60_000);
+  const [date, time] = shifted.toISOString().split("T");
+  return `${formatDate(date)} в ${time.slice(0, 5)}`;
 }
 
 export function progressBar(completedCount, totalCount, width = 10) {
